@@ -266,7 +266,12 @@ class SimpleChatProtocol
                 {
                     //get ID from message
                     string subMsg = senderMessage.substr(oneProtComm.command.size() + this->ccpSeparator.size());
-                    this->lastReceiverID = std::stoi(subMsg.substr(0, subMsg.find(this->ccpSeparator)));
+                    string subReceiverID = subMsg.substr(0, subMsg.find(this->ccpSeparator));
+                    if (subReceiverID.empty())
+                    {
+                        subReceiverID = "0";
+                    }
+                    this->lastReceiverID = std::stoi(subReceiverID);
                     //get message only
                     this->lastMsg = subMsg.substr(subMsg.find(this->ccpSeparator) + this->ccpSeparator.size());
 
@@ -276,7 +281,7 @@ class SimpleChatProtocol
                         {
                             return oneClientData->GetClientID() == this->GetLastReceiverID();
                         });
-                    if (receiverClient == this->chatClientsList->end())
+                    if (this->GetLastReceiverID() != 0 && receiverClient == this->chatClientsList->end())
                     {
                         //client with this ID not exist
                         this->outMessage = "Client with ID = " + std::to_string(this->lastReceiverID) + " not exist!";
@@ -288,47 +293,71 @@ class SimpleChatProtocol
                         //
                         return true;
                     }
-                    //client exists
-                    //check type of client
-                    if ((*receiverClient)->GetClientType() == simpleChatClientData::ClientType::bot)
+
+                    //send answer - to lambda??
+                    auto sendAnswerFunc = [this, &oneProtComm, &senderData, &messageToSenderHandler, &messageToReceiverHandler](simpleChatClientData* receiverClient)
                     {
-                        //chat bot answer
-                        if (oneProtComm.needAnswer)
+                        //client exists
+                        //check type of client
+                        if (receiverClient->GetClientType() == simpleChatClientData::ClientType::bot)
                         {
-                            this->outMessage = (static_cast<simpleChatBot*>(*receiverClient))->BotSay(this->lastMsg);
+                            //chat bot answer
+                            if (oneProtComm.needAnswer)
+                            {
+                                this->outMessage = (dynamic_cast<simpleChatBot*>(receiverClient))->BotSay(this->lastMsg);
+                                //call command handler
+                                if (oneProtComm.handlerPointer)
+                                {
+                                    this->outMessage = (this->*oneProtComm.handlerPointer)(oneProtComm.command, *receiverClient, this->outMessage);
+                                }
+                                if (messageToSenderHandler != nullptr)
+                                {
+                                    messageToSenderHandler(this->outMessage);
+                                }
+                                return true;
+                            }
+                        }
+                        else
+                        {
+                            //for normal clients
                             //call command handler
                             if (oneProtComm.handlerPointer)
                             {
-                                this->outMessage = (this->*oneProtComm.handlerPointer)(oneProtComm.command, **receiverClient, this->outMessage);
+                                this->outMessage = (this->*oneProtComm.handlerPointer)(oneProtComm.command, senderData, this->lastMsg);
                             }
-                            if (messageToSenderHandler != nullptr)
+                        }
+                        //answer message
+                        if (oneProtComm.needAnswer)
+                        {
+                            if (oneProtComm.answerTarget == protocolElements::answerTargetSender && messageToSenderHandler != nullptr)
                             {
                                 messageToSenderHandler(this->outMessage);
                             }
-                            return true;
+                            if (oneProtComm.answerTarget == protocolElements::answerTargetReceiver && messageToReceiverHandler != nullptr)
+                            {
+                                messageToReceiverHandler(this->outMessage);
+                            }
                         }
+                    };
+
+                    //call sending of answer
+                    if (this->GetLastReceiverID() != 0)
+                    {
+                        //to one client
+                        sendAnswerFunc(*receiverClient);
                     }
                     else
                     {
-                        //for normal clients
-                        //call command handler
-                        if (oneProtComm.handlerPointer)
+                        //broadcast sending to all
+                        for (auto oneReceiverClient : *(this->chatClientsList))
                         {
-                            this->outMessage = (this->*oneProtComm.handlerPointer)(oneProtComm.command, senderData, this->lastMsg);
+                            //set id
+                            this->lastReceiverID = oneReceiverClient->GetClientID();
+                            //send
+                            sendAnswerFunc(oneReceiverClient);
                         }
                     }
-                    //answer message
-                    if (oneProtComm.needAnswer)
-                    {
-                        if (oneProtComm.answerTarget == protocolElements::answerTargetSender && messageToSenderHandler != nullptr)
-                        {
-                            messageToSenderHandler(this->outMessage);
-                        }
-                        if (oneProtComm.answerTarget == protocolElements::answerTargetReceiver && messageToReceiverHandler != nullptr)
-                        {
-                            messageToReceiverHandler(this->outMessage);
-                        }
-                    }
+                    
                     //
                     return true;
                 }
