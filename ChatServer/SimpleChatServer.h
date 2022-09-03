@@ -1,5 +1,11 @@
-
 #pragma once
+
+//*********************************************************************************************************//
+//Simple chat server demo app, for Skillbox.
+//Simple chat server class.
+//Created 20.03.2021
+//Created by Novikov Dmitry
+//*********************************************************************************************************//
 
 #include <string>
 #include <vector>

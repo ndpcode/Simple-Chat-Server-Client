@@ -1,3 +1,9 @@
+//*********************************************************************************************************//
+//Simple chat client demo app, for Skillbox.
+//Created 20.03.2021
+//Created by Novikov Dmitry
+//*********************************************************************************************************//
+
 //server
 const serverAddress = "localhost:9001/";
 //chat client protocol constants
